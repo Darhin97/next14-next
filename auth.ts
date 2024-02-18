@@ -10,6 +10,7 @@ declare module "next-auth" {
   interface Session {
     user: {
       role: "ADMIN" | "USER";
+      id: string;
     };
   }
 }
@@ -27,19 +28,32 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
+  pages: {
+    signIn: "/auth/login",
+    error: "/auth/error",
+  },
+  events: {
+    // handling email verification for oAuth [google, github] account
+    async linkAccount({ user }) {
+      await db.user.update({
+        where: { id: user.id },
+        data: { emailVerified: new Date() },
+      });
+    },
+  },
   callbacks: {
-    async session({ token, session }) {
-      console.log({ sessionToken: token, session });
+    async signIn({ user, account }) {
+      // Allow OAuth without email verification
+      if (account?.provider !== "credentials") return true;
 
-      if (token.sub && session.user) {
-        session.user.id = token.sub;
-      }
+      const existingUser = await getUserById(user.id as string);
 
-      if (token.role && session.user) {
-        session.user.role = token.role;
-      }
+      //prevent signin without email verification
+      if (!existingUser?.emailVerified) return false;
 
-      return session;
+      //TODO; ADD 2FA
+
+      return true;
     },
 
     async jwt({ token, user }) {
@@ -54,6 +68,20 @@ export const {
 
       //always return the token
       return token;
+    },
+
+    async session({ token, session }) {
+      // console.log({ sessionToken: token, session });
+
+      if (token.sub && session.user) {
+        session.user.id = token.sub;
+      }
+
+      if (token.role && session.user) {
+        session.user.role = token.role;
+      }
+
+      return session;
     },
   },
 
