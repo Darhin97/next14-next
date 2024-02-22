@@ -12,6 +12,7 @@ declare module "next-auth" {
     user: {
       role: "ADMIN" | "USER";
       id: string;
+      isTwoFactorEnabled: boolean;
     };
   }
 }
@@ -20,9 +21,11 @@ declare module "next-auth/jwt" {
   /** Returned by the `jwt` callback and `auth`, when using JWT sessions */
   interface JWT {
     role?: "ADMIN" | "USER";
+    isTwoFactorEnabled: boolean;
   }
 }
 
+//signIn && signOut used for serverside only
 export const {
   handlers: { GET, POST },
   auth,
@@ -73,12 +76,13 @@ export const {
     async jwt({ token, user }) {
       //extend session by using token
 
-      // console.log({ token });
+      // console.log({ token, user });
       if (!token.sub) return token;
       const existingUser = await getUserById(token.sub);
 
       if (!existingUser) return token;
       token.role = existingUser.role;
+      token.isTwoFactorEnabled = existingUser.isTwoFactorEnabled;
 
       //always return the token
       return token;
@@ -93,6 +97,12 @@ export const {
 
       if (token.role && session.user) {
         session.user.role = token.role;
+      }
+      if (
+        token.isTwoFactorEnabled === false ||
+        (token.isTwoFactorEnabled === true && session.user)
+      ) {
+        session.user.isTwoFactorEnabled = token.isTwoFactorEnabled;
       }
 
       return session;
