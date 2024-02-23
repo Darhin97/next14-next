@@ -1,5 +1,5 @@
 /**
- * An array of routes that a accessible to the public
+ * An array of routes that is accessible to the public
  *
  * These routes do not require authentication
  * @type {string[]}
