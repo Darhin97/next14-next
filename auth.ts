@@ -6,6 +6,7 @@ import authConfig from "@/auth.config";
 import { db } from "@/lib/db";
 import { getUserById } from "@/data/user";
 import { getTwoFactorConfirmationByUserId } from "@/data/two-factor-confirmation";
+import { getAccountByUserId } from "@/data/account";
 
 declare module "next-auth" {
   interface Session {
@@ -13,6 +14,7 @@ declare module "next-auth" {
       role: "ADMIN" | "USER";
       id: string;
       isTwoFactorEnabled: boolean;
+      isOAuth: boolean;
     };
   }
 }
@@ -22,6 +24,8 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: "ADMIN" | "USER";
     isTwoFactorEnabled: boolean;
+    email: string;
+    isOAuth: boolean;
   }
 }
 
@@ -60,7 +64,7 @@ export const {
           existingUser.id,
         );
 
-        console.log({ twoFactorConfirmation });
+        // console.log({ twoFactorConfirmation });
 
         if (!twoFactorConfirmation) return false;
 
@@ -77,10 +81,18 @@ export const {
       //extend session by using token
 
       // console.log({ token, user });
+      // console.log("Called again here");
       if (!token.sub) return token;
       const existingUser = await getUserById(token.sub);
 
+      // console.log({ existingUser });
       if (!existingUser) return token;
+
+      const existingAccount = await getAccountByUserId(existingUser.id);
+
+      token.isOAuth = !!existingAccount;
+      token.name = existingUser.name;
+      token.email = existingUser.email as string;
       token.role = existingUser.role;
       token.isTwoFactorEnabled = existingUser.isTwoFactorEnabled;
 
@@ -103,6 +115,12 @@ export const {
         (token.isTwoFactorEnabled === true && session.user)
       ) {
         session.user.isTwoFactorEnabled = token.isTwoFactorEnabled;
+      }
+
+      if (session.user) {
+        session.user.name = token.name;
+        session.user.email = token.email;
+        session.user.isOAuth = token.isOAuth as boolean;
       }
 
       return session;
